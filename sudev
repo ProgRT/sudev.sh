@@ -3,14 +3,18 @@
 gnuplot -p << GPEND
 
 set terminal x11 size 1400,700
-#set output 'test.svg'
+set nokey
+set autoscale xfix
+set grid lt 0 linecolor rgb "gray"
 
 set xdata time
 set timefmt '%H:%M:%S'
 
 set multiplot layout 2,1
 
+set ylabel "Pression (cmH2O)"
 plot "<sudef $1" using 1:3 with lines
+set ylabel "Debit (l/s)"
 plot "<sudef $1" using 1:4 with lines
 
 unset multiplot
