@@ -1,0 +1,407 @@
+#!/usr/bin/wish
+
+package require sqlite3
+
+tk scaling 1.2
+wm attributes . -zoomed 1
+
+set defaultPadding 4
+
+#################
+# Requètes SQL
+#################
+set req_dbinnit "CREATE TABLE fichiers (
+	fichier text NOT NULL UNIQUE,
+	date date,
+	mode text
+);
+
+CREATE TABLE parametres (
+	fichier text NOT NULL,
+	parametre text NOT NULL,
+	valeur, text NOT NULL,
+	CONSTRAINT unicite UNIQUE (fichier, parametre)
+);
+
+CREATE TABLE etiquettes (
+	fichier text NOT NULL, 
+	etiquette text NOT NULL,
+	CONSTRAINT unicite UNIQUE (fichier, etiquette)
+);
+
+
+CREATE VIEW untagged AS 
+	SELECT DISTINCT fichiers.fichier FROM fichiers 
+	LEFT OUTER JOIN etiquettes USING(fichier) 
+	WHERE etiquettes.fichier IS NULL;
+
+CREATE VIEW somaire AS 
+	SELECT etiquette AS Étiquette, count(fichier) AS Nombre 
+	FROM etiquettes 
+	GROUP BY etiquette 
+	ORDER BY count(fichier) DESC;"
+
+#################
+# Procédures
+#################
+
+proc haseadi {f} {
+	set lines [split [read [open $f]] "\n"]
+
+	for {set i 0} {$i < [llength $lines]} {incr i} {
+		if {[string match "*Edi*" [lindex $lines $i]]} {return 1}
+	}
+	return 0
+}
+
+proc sudetLoadDirectory {} {
+	set dir [tk_chooseDirectory]
+	cd $dir
+	sudetLoadCurentDirectory
+}
+
+proc sudetLoadCurentDirectory {} {
+	global filelist
+	global filteredFileList
+
+	set filelist [glob -nocomplain *.txt]
+
+	if {[llength $filelist] > 0} {
+		createdb
+
+		set query "SELECT distinct fichier FROM fichiers;"
+		set filteredFileList  [db eval $query]
+
+		makeFiltersList
+
+		makeTagsList
+		loadFirstFile
+	}
+}
+
+proc updateFilteredList {} {
+
+	global filtersValues
+	global filteredFileList
+
+	set selectedTags {}
+	set allTags [getAllTags]
+
+	if {[llength $allTags] > 0} {
+		for {set i 0} {$i < [llength $allTags]} {incr i} {
+			if {[expr $filtersValues($i) == 1]} {
+				lappend selectedTags [lindex $allTags $i]
+			}
+		}
+	}
+
+	if {[llength $selectedTags] > 0} {
+		set query "SELECT DISTINCT fichier FROM etiquettes WHERE etiquette=\"[lindex $selectedTags 0]\""
+
+		for {set i 1} {$i < [llength $selectedTags]} {incr i} {
+			append query " OR etiquette=\"[lindex $selectedTags $i]\""
+		}
+
+		set filteredFileList  [db eval $query]
+		loadFirstFile
+	} else {
+
+		set defquery "SELECT DISTINCT fichier FROM fichiers;"
+		set filteredFileList  [db eval $defquery]
+
+		loadFirstFile
+	}
+}
+
+proc filterNoTags {} {
+	global filteredFileList
+	global varFilterNoTags
+	
+	if {$varFilterNoTags == 1} {
+		foreach f [winfo children .col1.fr1.frTag] {
+			$f configure -state disabled
+		}
+		set defquery "SELECT DISTINCT fichier FROM untagged;"
+		set filteredFileList  [db eval $defquery]
+
+		loadFirstFile
+	} else { 
+		foreach f [winfo children .col1.fr1.frTag] {
+			$f configure -state normal
+		}
+		updateFilteredList 
+	}
+}
+
+proc loadfile {} {
+	global filteredFileList
+	global curentfile
+
+	set curindex [.col1.fr2.lf curselection]
+	if {$curindex != ""} {
+		set curentfile [lindex $filteredFileList $curindex]
+		display $curentfile
+		updateTagsList
+	}
+}
+
+proc updateTagsList {} {
+	global curentfile
+	global tagValues
+
+	set allCb [winfo children .col3.fr1]
+	set allTags [getAllTags]
+	set activeTags [getTags $curentfile]
+
+	for {set i 0} {$i < [llength $allTags]} {incr i} {
+		set activeTagIndex [lsearch $activeTags [lindex $allTags $i]]
+
+		if {$activeTagIndex >= 0} {
+			[lindex $allCb $i] select 
+		} else { 
+			[lindex $allCb $i] deselect 
+		}
+	}
+}
+
+proc pushTagsList {} {
+
+	global curentfile
+	global tagValues
+
+	set allCb [winfo children .col3.fr1]
+	set allTags [getAllTags]
+	set activeTags [getTags $curentfile]
+
+	set modifiedTags 0
+	
+	for {set i 0} {$i < [llength $allTags]} {incr i} {
+		set tagText [lindex $allTags $i]
+		set activeTagIndex [lsearch $activeTags $tagText]
+
+		if {[expr $tagValues($i) == 0 && $activeTagIndex >= 0]} {
+			removetag $curentfile $tagText
+			incr modifiedTags
+		} elseif {[expr $tagValues($i) == 1 && $activeTagIndex == -1 ]} {
+			insertTag $curentfile $tagText
+			incr modifiedTags
+		}
+
+		if {$modifiedTags > 0} {makeFiltersList}
+	}
+}
+
+proc getTags {f} {
+	return [db eval "SELECT etiquette FROM etiquettes WHERE fichier=\"$f\""]
+}
+
+proc getAllTags {} {
+	return [db eval "SELECT DISTINCT etiquette FROM etiquettes"]
+}
+
+proc getOcurence {etiquette} {
+	set query "SELECT Nombre FROM somaire WHERE Étiquette=\"$etiquette\"" 
+	return [lindex [db eval $query] 0]
+}
+
+proc makeTagsList {} {
+	destroy .col3.fr1
+	labelframe .col3.fr1 -text Étiquettes
+	pack .col3.fr1 -in .col3
+
+	set tags [getAllTags]
+
+	for {set i 0} {$i < [llength $tags]} {incr i} {
+		addToTagsList .col3.fr1 [lindex $tags $i] pushTagsList
+	}
+}
+
+proc makeFiltersList {} {
+	foreach f [winfo children .col1.fr1.frTag] {
+		destroy $f
+	}
+
+	set tags [getAllTags]
+
+	for {set i 0} {$i < [llength $tags]} {incr i} {
+		addToFiltersList .col1.fr1.frTag "[lindex $tags $i] ([getOcurence [lindex $tags $i]])" updateFilteredList
+	}
+}
+
+proc addToTagsList {targetFrame tagText cmd {selected false}} {
+	set i [llength [winfo children $targetFrame]]
+	set newcb [checkbutton $targetFrame.t$i -text $tagText -variable tagValues($i) -command $cmd]
+	if {$selected} { $newcb select }
+	pack $targetFrame.t$i -in $targetFrame -anchor w
+}
+
+proc addToFiltersList {targetFrame tagText cmd {selected false}} {
+	set i [llength [winfo children $targetFrame]]
+	set newcb [checkbutton $targetFrame.t$i -text $tagText -variable filtersValues($i) -command $cmd]
+	if {$selected} { $newcb select }
+	pack $targetFrame.t$i -in $targetFrame -anchor w
+}
+
+proc display {f} {
+	if {[haseadi $f]} {set numWaveforms 4} {set numWaveforms 3}
+	set cmd " set terminal tk 
+set nokey
+set autoscale xfix
+
+set xdata time
+set timefmt '%H:%M:%S'
+set datafile separator '\t'
+
+set multiplot layout $numWaveforms,1
+
+set ylabel 'Pression (cmH₂O)'
+plot '<sudef $f' using 1:3 with lines
+
+set ylabel 'Débit (l/s)'
+plot '<sudef $f' using 1:4 with lines
+"
+		append cmd "
+set ylabel 'Volume courant (ml)'
+plot '<sudef $f' using 1:5 with lines
+"
+	if {[haseadi $f]} {
+		append cmd "
+set ylabel 'Eadi (mcV)'
+plot '<sudef $f' using 1:6 with lines
+"
+	} {
+	}
+	append cmd "unset multiplot"
+	eval [exec gnuplot << $cmd]
+	gnuplot .c
+}
+
+proc createdb {} {
+	global filelist
+	global req_dbinnit
+
+	if {[file exist ./db.sqlite]} {
+		sqlite3 db ./db.sqlite	
+	} else {
+		sqlite3 db ./db.sqlite	
+
+		db eval $req_dbinnit
+
+		foreach f $filelist {
+			db eval "INSERT INTO fichiers	VALUES (\"$f\")"
+		}
+	}
+}
+
+proc insertTag {filename tag} {
+	db eval "INSERT INTO etiquettes VALUES (\"$filename\", \"$tag\")"
+}
+
+proc removetag {filename tag} {
+	db eval "DELETE FROM etiquettes where fichier=\"$filename\" AND etiquette=\"$tag\""
+}
+
+proc newtag {} {
+	global curentfile
+	
+	set w [toplevel .newtagdialog]
+	wm attributes .newtagdialog -topmost 1
+
+	label .newtagdialog.label1 -text  "Nouvel étiquette:"
+	entry .newtagdialog.entry1 -textvariable newtagvalue
+	bind .newtagdialog.entry1 <Return> {.newtagdialog.bok invoke}
+
+	button .newtagdialog.bok -text Valider -command {
+		insertTag $curentfile $newtagvalue
+		addToTagsList .col3.fr1 $newtagvalue pushTagsList true
+		set newtagvalue ""
+		destroy .newtagdialog
+		makeFiltersList
+	}
+
+	pack .newtagdialog.label1 .newtagdialog.entry1 .newtagdialog.bok
+	focus .newtagdialog.entry1
+}
+
+proc loadFirstFile {} {
+	.col1.fr2.lf selection set 0
+	focus .col1.fr2.lf
+	loadfile
+}
+
+#################
+# Interface
+#################
+
+# Frame premier niveau
+# ====================
+#
+. configure -menu .menu1
+
+frame .col1
+frame .col2
+frame .col3
+
+pack .col1 -side left -anchor n -fill both -expand false
+pack .col2 .col3 -side left -anchor n -fill both -expand true
+pack .col3 -side left -anchor n -fill both -expand false -padx 2
+
+# Contenu
+# =======
+
+# Menus
+
+menu .menu1
+.menu1 add cascade -label Menu -menu .mainmenu
+
+menu .mainmenu -tearoff 0
+.mainmenu add command -label {Ouvrir un répertoire} -accelerator (Ctrl+r) -command sudetLoadDirectory
+.mainmenu add command -label {Nouvel étiquette} -accelerator (Ctrl+n) -command newtag
+.mainmenu add command -label Quiter -accelerator (Ctrl+q) -command exit
+
+# Column 1
+# --------
+
+# Filters
+
+labelframe .col1.fr1 -text Filtres
+pack .col1.fr1 -in .col1 -side top -fill both -expand false
+
+checkbutton .col1.fr1.cb1 -text "Sans étiquette" -anchor w -variable varFilterNoTags -command filterNoTags
+ttk::separator .col1.fr1.s1
+label .col1.fr1.label1 -text Étiquettes
+frame .col1.fr1.frTag 
+pack .col1.fr1.cb1 .col1.fr1.s1  .col1.fr1.frTag -in .col1.fr1 -side top -fill x -expand true -anchor w
+
+# Filelist
+
+labelframe .col1.fr2 -text Fichiers
+pack .col1.fr2 -in .col1 -side top -fill both -expand true
+
+listbox .col1.fr2.lf - listvariable filteredFileList
+pack .col1.fr2.lf -in .col1.fr2 -side top -fill both -expand true
+
+# Column 2
+# --------
+canvas .c
+pack .c -in .col2 -fill both -expand true
+
+# Frame 3
+
+#################
+# Évènements
+#################
+
+bind . <Control-KeyPress-q> exit
+bind . <Control-KeyPress-o> sudetLoadDirectory
+bind . <Control-KeyPress-n> newtag
+bind .c <Configure> {if {[info exists curentfile]} {display $curentfile}}
+bind Listbox <Control-KeyPress-n> { }
+bind LIstbox <Control-KeyPress-p> { }
+bind .col1.fr2.lf <<ListboxSelect>> loadfile
+
+#################
+# Initialisaton
+#################
+
+sudetLoadCurentDirectory
