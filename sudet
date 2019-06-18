@@ -54,6 +54,21 @@ proc haseadi {f} {
 	return 0
 }
 
+proc getParameters {f} {
+	set lines [split [read [open $f]] "\n"]
+	set parameters {}
+	set i 1
+	set endOfParams 0
+	while {$endOfParams == 0 && $i < [llength $lines]} {
+		set line [lindex $lines $i]
+		if {[string match "*DATA*" $line]} {
+			set endOfParams 1
+		} {lappend parameters [split $line "\t"]}
+		incr i
+	}
+	return $parameters
+}
+
 proc sudetLoadDirectory {} {
 	set dir [tk_chooseDirectory]
 	cd $dir
@@ -243,6 +258,10 @@ proc addToFiltersList {targetFrame tagText cmd {selected false}} {
 }
 
 proc display {f} {
+	foreach p [getParameters $f] {
+		puts $p
+	}
+
 	if {[haseadi $f]} {set numWaveforms 4} {set numWaveforms 3}
 	set cmd " set terminal tk 
 set nokey
@@ -378,7 +397,7 @@ pack .col1.fr1.cb1 .col1.fr1.s1  .col1.fr1.frTag -in .col1.fr1 -side top -fill x
 labelframe .col1.fr2 -text Fichiers
 pack .col1.fr2 -in .col1 -side top -fill both -expand true
 
-listbox .col1.fr2.lf - listvariable filteredFileList
+listbox .col1.fr2.lf -listvariable filteredFileList
 pack .col1.fr2.lf -in .col1.fr2 -side top -fill both -expand true
 
 # Column 2
