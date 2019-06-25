@@ -1,6 +1,8 @@
 #!/usr/bin/wish
 
 package require sqlite3
+package require sude
+#source ~/Projets/Publiés/sudev.sh/sude.tcl
 
 tk scaling 1.2
 wm attributes . -zoomed 1
@@ -45,33 +47,8 @@ CREATE VIEW somaire AS
 # Procédures
 #################
 
-proc haseadi {f} {
-	set lines [split [read [open $f]] "\n"]
-
-	for {set i 0} {$i < [llength $lines]} {incr i} {
-		if {[string match "*Edi*" [lindex $lines $i]]} {return 1}
-	}
-	return 0
-}
-
-proc getParameters {f} {
-	set lines [split [read [open $f]] "\n"]
-	set parameters {}
-	set i 1
-	set endOfParams 0
-	while {$endOfParams == 0 && $i < [llength $lines]} {
-		set line [lindex $lines $i]
-		if {[string match "*DATA*" $line]} {
-			set endOfParams 1
-		} {lappend parameters [split $line "\t"]}
-		incr i
-	}
-	return $parameters
-}
-
 proc sudetLoadDirectory {} {
-	set dir [tk_chooseDirectory]
-	cd $dir
+	cd [tk_chooseDirectory]
 	sudetLoadCurentDirectory
 }
 
@@ -155,7 +132,7 @@ proc loadfile {} {
 	set curindex [.col1.fr2.lf curselection]
 	if {$curindex != ""} {
 		set curentfile [lindex $filteredFileList $curindex]
-		display $curentfile
+		::sude::display $curentfile .c
 		updateTagsList
 	}
 }
@@ -255,44 +232,6 @@ proc addToFiltersList {targetFrame tagText cmd {selected false}} {
 	set newcb [checkbutton $targetFrame.t$i -text $tagText -variable filtersValues($i) -command $cmd]
 	if {$selected} { $newcb select }
 	pack $targetFrame.t$i -in $targetFrame -anchor w
-}
-
-proc display {f} {
-	foreach p [getParameters $f] {
-		puts $p
-	}
-
-	if {[haseadi $f]} {set numWaveforms 4} {set numWaveforms 3}
-	set cmd " set terminal tk 
-set nokey
-set autoscale xfix
-
-set xdata time
-set timefmt '%H:%M:%S'
-set datafile separator '\t'
-
-set multiplot layout $numWaveforms,1
-
-set ylabel 'Pression (cmH₂O)'
-plot '<sudef $f' using 1:3 with lines
-
-set ylabel 'Débit (l/s)'
-plot '<sudef $f' using 1:4 with lines
-"
-		append cmd "
-set ylabel 'Volume courant (ml)'
-plot '<sudef $f' using 1:5 with lines
-"
-	if {[haseadi $f]} {
-		append cmd "
-set ylabel 'Eadi (mcV)'
-plot '<sudef $f' using 1:6 with lines
-"
-	} {
-	}
-	append cmd "unset multiplot"
-	eval [exec gnuplot << $cmd]
-	gnuplot .c
 }
 
 proc createdb {} {
@@ -402,7 +341,7 @@ pack .col1.fr2.lf -in .col1.fr2 -side top -fill both -expand true
 
 # Column 2
 # --------
-canvas .c
+set dCanva [canvas .c]
 pack .c -in .col2 -fill both -expand true
 
 # Frame 3
@@ -414,7 +353,7 @@ pack .c -in .col2 -fill both -expand true
 bind . <Control-KeyPress-q> exit
 bind . <Control-KeyPress-o> sudetLoadDirectory
 bind . <Control-KeyPress-n> newtag
-bind .c <Configure> {if {[info exists curentfile]} {display $curentfile}}
+bind .c <Configure> {if {[info exists curentfile]} {::sude::display $curentfile .c}}
 bind Listbox <Control-KeyPress-n> { }
 bind LIstbox <Control-KeyPress-p> { }
 bind .col1.fr2.lf <<ListboxSelect>> loadfile
