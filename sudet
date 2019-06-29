@@ -11,39 +11,6 @@ wm attributes . -zoomed 1
 set defaultPadding 4
 
 #################
-# Requètes SQL
-#################
-set req_dbinnit "CREATE TABLE fichiers (
-	fichier text NOT NULL UNIQUE,
-	date date,
-	mode text
-);
-
-CREATE TABLE parametres (
-	fichier text NOT NULL,
-	parametre text NOT NULL,
-	valeur, text NOT NULL,
-	CONSTRAINT unicite UNIQUE (fichier, parametre)
-);
-
-CREATE TABLE etiquettes (
-	fichier text NOT NULL, 
-	etiquette text NOT NULL,
-	CONSTRAINT unicite UNIQUE (fichier, etiquette)
-);
-
-CREATE VIEW untagged AS 
-	SELECT DISTINCT fichiers.fichier FROM fichiers 
-	LEFT OUTER JOIN etiquettes USING(fichier) 
-	WHERE etiquettes.fichier IS NULL;
-
-CREATE VIEW somaire AS 
-	SELECT etiquette AS Étiquette, count(fichier) AS Nombre 
-	FROM etiquettes 
-	GROUP BY etiquette 
-	ORDER BY count(fichier) DESC;"
-
-#################
 # Procédures
 #################
 
@@ -59,15 +26,10 @@ proc sudetLoadCurentDirectory {} {
 	set filelist [glob -nocomplain *.txt]
 
 	if {[llength $filelist] > 0} {
-		#createdb
 		::Sudet::dbConnect
 		::Sudet::dbSync
-
-		set query "SELECT distinct fichier FROM fichiers;"
 		set filteredFileList  [::Sudet::getAllFiles]
-
 		makeFiltersList
-
 		makeTagsList
 		loadFirstFile
 	}
@@ -79,7 +41,7 @@ proc updateFilteredList {} {
 	global filteredFileList
 
 	set selectedTags {}
-	set allTags [getAllTags]
+	set allTags [::Sudet::getAllTags]
 
 	if {[llength $allTags] > 0} {
 		for {set i 0} {$i < [llength $allTags]} {incr i} {
@@ -97,14 +59,10 @@ proc updateFilteredList {} {
 		}
 
 		set filteredFileList  [db eval $query]
-		loadFirstFile
 	} else {
-
-		set defquery "SELECT DISTINCT fichier FROM fichiers;"
-		set filteredFileList  [db eval $defquery]
-
-		loadFirstFile
+		set filteredFileList  [::Sudet::getAllFiles]
 	}
+	loadFirstFile
 }
 
 proc filterNoTags {} {
@@ -115,8 +73,7 @@ proc filterNoTags {} {
 		foreach f [winfo children .col1.fr1.frTag] {
 			$f configure -state disabled
 		}
-		set defquery "SELECT DISTINCT fichier FROM untagged;"
-		set filteredFileList  [db eval $defquery]
+		set filteredFileList  [db eval "SELECT DISTINCT fichier FROM untagged;"]
 
 		loadFirstFile
 	} else { 
@@ -144,8 +101,8 @@ proc updateTagsList {} {
 	global tagValues
 
 	set allCb [winfo children .col3.fr1]
-	set allTags [getAllTags]
-	set activeTags [getTags $curentfile]
+	set allTags [::Sudet::getAllTags]
+	set activeTags [::Sudet::getTags $curentfile]
 
 	for {set i 0} {$i < [llength $allTags]} {incr i} {
 		set activeTagIndex [lsearch $activeTags [lindex $allTags $i]]
@@ -164,8 +121,8 @@ proc pushTagsList {} {
 	global tagValues
 
 	set allCb [winfo children .col3.fr1]
-	set allTags [getAllTags]
-	set activeTags [getTags $curentfile]
+	set allTags [::Sudet::getAllTags]
+	set activeTags [::Sudet::getTags $curentfile]
 
 	set modifiedTags 0
 	
@@ -174,10 +131,10 @@ proc pushTagsList {} {
 		set activeTagIndex [lsearch $activeTags $tagText]
 
 		if {[expr $tagValues($i) == 0 && $activeTagIndex >= 0]} {
-			removetag $curentfile $tagText
+			::Sudet::removeTag $curentfile $tagText
 			incr modifiedTags
 		} elseif {[expr $tagValues($i) == 1 && $activeTagIndex == -1 ]} {
-			insertTag $curentfile $tagText
+			::Sudet::insertTag $curentfile $tagText
 			incr modifiedTags
 		}
 
@@ -185,28 +142,13 @@ proc pushTagsList {} {
 	}
 }
 
-proc getTags {f} {
-	return [db eval "SELECT etiquette FROM etiquettes WHERE fichier=\"$f\""]
-}
-
-proc getAllTags {} {
-	return [db eval "SELECT DISTINCT etiquette FROM etiquettes"]
-}
-
-proc getOcurence {etiquette} {
-	set query "SELECT Nombre FROM somaire WHERE Étiquette=\"$etiquette\"" 
-	return [lindex [db eval $query] 0]
-}
-
 proc makeTagsList {} {
 	destroy .col3.fr1
 	labelframe .col3.fr1 -text Étiquettes
 	pack .col3.fr1 -in .col3
 
-	set tags [getAllTags]
-
-	for {set i 0} {$i < [llength $tags]} {incr i} {
-		addToTagsList .col3.fr1 [lindex $tags $i] pushTagsList
+	foreach tag [::Sudet::getAllTags] {
+		addToTagsList .col3.fr1 $tag pushTagsList
 	}
 }
 
@@ -215,10 +157,8 @@ proc makeFiltersList {} {
 		destroy $f
 	}
 
-	set tags [getAllTags]
-
-	for {set i 0} {$i < [llength $tags]} {incr i} {
-		addToFiltersList .col1.fr1.frTag "[lindex $tags $i] ([getOcurence [lindex $tags $i]])" updateFilteredList
+	foreach tag [::Sudet::getAllTags] {
+		addToFiltersList .col1.fr1.frTag "$tag ([::Sudet::getOcurence $tag])" updateFilteredList
 	}
 }
 
@@ -236,28 +176,6 @@ proc addToFiltersList {targetFrame tagText cmd {selected false}} {
 	pack $targetFrame.t$i -in $targetFrame -anchor w
 }
 
-proc createdb {} {
-	global filelist
-	global req_dbinnit
-
-	if {[file exist ./db.sqlite]} {
-		sqlite3 db ./db.sqlite	
-	} else {
-		sqlite3 db ./db.sqlite	
-		db eval $req_dbinnit
-		#foreach f $filelist {db eval "INSERT INTO fichiers	(fichier) VALUES (\"$f\")"}
-	}
-	::Sudet::dbSync
-}
-
-proc insertTag {filename tag} {
-	db eval "INSERT INTO etiquettes VALUES (\"$filename\", \"$tag\")"
-}
-
-proc removetag {filename tag} {
-	db eval "DELETE FROM etiquettes where fichier=\"$filename\" AND etiquette=\"$tag\""
-}
-
 proc newtag {} {
 	global curentfile
 	
@@ -269,7 +187,7 @@ proc newtag {} {
 	bind .newtagdialog.entry1 <Return> {.newtagdialog.bok invoke}
 
 	button .newtagdialog.bok -text Valider -command {
-		insertTag $curentfile $newtagvalue
+		::Sudet::insertTag $curentfile $newtagvalue
 		addToTagsList .col3.fr1 $newtagvalue pushTagsList true
 		set newtagvalue ""
 		destroy .newtagdialog
