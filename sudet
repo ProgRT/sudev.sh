@@ -3,6 +3,7 @@
 package require sqlite3
 package require sude
 #source ~/Projets/Publiés/sudev.sh/sude.tcl
+source ~/Projets/Publiés/sudev.sh/Sudet.tcl
 
 tk scaling 1.2
 wm attributes . -zoomed 1
@@ -58,10 +59,12 @@ proc sudetLoadCurentDirectory {} {
 	set filelist [glob -nocomplain *.txt]
 
 	if {[llength $filelist] > 0} {
-		createdb
+		#createdb
+		::Sudet::dbConnect
+		::Sudet::dbSync
 
 		set query "SELECT distinct fichier FROM fichiers;"
-		set filteredFileList  [db eval $query]
+		set filteredFileList  [::Sudet::getAllFiles]
 
 		makeFiltersList
 
@@ -241,13 +244,10 @@ proc createdb {} {
 		sqlite3 db ./db.sqlite	
 	} else {
 		sqlite3 db ./db.sqlite	
-
 		db eval $req_dbinnit
-
-		foreach f $filelist {
-			db eval "INSERT INTO fichiers	(fichier) VALUES (\"$f\")"
-		}
+		#foreach f $filelist {db eval "INSERT INTO fichiers	(fichier) VALUES (\"$f\")"}
 	}
+	::Sudet::dbSync
 }
 
 proc insertTag {filename tag} {

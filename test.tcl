@@ -4,3 +4,4 @@ source Sudet.tcl
 cd ~/Projets/Publiés/sudev.sh/Data
 
 ::Sudet::dbConnect
+::Sudet::dbSync

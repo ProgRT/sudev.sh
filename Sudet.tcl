@@ -4,9 +4,7 @@ namespace eval ::Sudet:: {
 	namespace export {dbInnit dbSync insertTag removeTag getTags getAllTags getOcurence}
 }
 
-proc ::Sudet::dbConnect {} {
-
-	set req_dbInnit {CREATE TABLE fichiers (
+variable ::Sudet::reqDbInnit {CREATE TABLE fichiers (
 	fichier text NOT NULL UNIQUE,
 	date date,
 	mode text
@@ -18,7 +16,7 @@ proc ::Sudet::dbConnect {} {
 	valeur, text NOT NULL,
 	CONSTRAINT unicite UNIQUE (fichier, parametre)
 	);
-	req_dbInnit 
+
 	CREATE TABLE etiquettes (
 	fichier text NOT NULL, 
 	etiquette text NOT NULL,
@@ -36,18 +34,32 @@ proc ::Sudet::dbConnect {} {
 	GROUP BY etiquette 
 	ORDER BY count(fichier) DESC;}
 
-	if {[file exist ./db.sqlite]} {
-		sqlite3 db ./db.sqlite	
+proc ::Sudet::dbConnect {} {
+
+	variable reqDbInnit
+
+	if {![file exist ./db.sqlite]} {
+		sqlite3 db ./db.sqlite
+		db eval $reqDbInnit
 	} else {
-		sqlite3 db ./db.sqlite	
-		db eval $req_dbInnit
+		sqlite3 db ./db.sqlite
 	}
 }
 
 proc ::Sudet::dbSync {} {
-	set filelist [glob -nocomplain *.txt]
-	foreach f $filelist {
-		db eval [format "INSERT INTO fichiers	(fichier) VALUES (\"%s\")" $f]
+	set dirFileList [glob -nocomplain *.txt]
+	set fileList [getAllFiles]
+	foreach f $dirFileList {
+		if {[lsearch $fileList $f] == -1} {
+			db eval [format "INSERT INTO fichiers	(fichier) VALUES (\"%s\")" $f]
+			puts "$f added to db"
+		}
+	}
+	foreach f $fileList {
+		if {[lsearch $dirFileList $f] == -1} {
+			db eval "DELETE FROM fichiers	WHERE fichier=\"$f\""
+			puts "$f removed from db"
+		}
 	}
 }
 
@@ -72,3 +84,6 @@ proc ::Sudet::getOcurence {etiquette} {
 	return [lindex [db eval $query] 0]
 }
 
+proc ::Sudet::getAllFiles {} {
+	return [db eval "SELECT DISTINCT fichier FROM fichiers"]
+}
