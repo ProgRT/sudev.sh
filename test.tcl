@@ -1,7 +1,6 @@
 #!/usr/bin/tclsh
-source sude.tcl
+source Sudet.tcl
 
-foreach f [glob -directory Data "*.txt"] {
-	puts [format "%s: %s" $f [::sude::haseadi $f]]
-	#puts [exec head -n 31 $f]
-}
+cd ~/Projets/Publiés/sudev.sh/Data
+
+::Sudet::dbConnect

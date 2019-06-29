@@ -31,7 +31,6 @@ CREATE TABLE etiquettes (
 	CONSTRAINT unicite UNIQUE (fichier, etiquette)
 );
 
-
 CREATE VIEW untagged AS 
 	SELECT DISTINCT fichiers.fichier FROM fichiers 
 	LEFT OUTER JOIN etiquettes USING(fichier) 
@@ -246,7 +245,7 @@ proc createdb {} {
 		db eval $req_dbinnit
 
 		foreach f $filelist {
-			db eval "INSERT INTO fichiers	VALUES (\"$f\")"
+			db eval "INSERT INTO fichiers	(fichier) VALUES (\"$f\")"
 		}
 	}
 }

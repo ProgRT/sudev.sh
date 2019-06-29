@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=sudet
+GenericName=sudet
+Comment=ventilator data tagging interface
+Exec=sudet
+Icon=/home/nicolas/Projets/Publiés/sudev.sh/sudet2.svg
+Terminal=false
+StartupWMClass=processing-app-Base
