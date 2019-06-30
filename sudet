@@ -1,9 +1,11 @@
 #!/usr/bin/wish
 
 package require sqlite3
-package require sude
-#source ~/Projets/Publiés/sudev.sh/sude.tcl
+
+#package require sude
+#package require Sudet
 source ~/Projets/Publiés/sudev.sh/Sudet.tcl
+source ~/Projets/Publiés/sudev.sh/sude.tcl
 
 tk scaling 1.2
 wm attributes . -zoomed 1

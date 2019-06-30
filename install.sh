@@ -19,3 +19,13 @@ fi
 echo "pkg_mkIndex ./ sude.tcl" | tclsh
 sudo cp sude.tcl $targetDir/
 sudo cp pkgIndex.tcl $targetDir/
+
+targetDir="/usr/share/tcl8.6/Sudet"
+if [ ! -d $targetDir ]
+then
+	sudo mkdir $targetDir
+fi
+
+echo "pkg_mkIndex ./ Sudet.tcl" | tclsh
+sudo cp Sudet.tcl $targetDir/
+sudo cp pkgIndex.tcl $targetDir/

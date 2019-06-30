@@ -1,7 +1,7 @@
 package provide sude 0.1
 
 namespace eval ::sude:: {
-	namespace export {getParameters formatParameters}
+	namespace export {getParameters formatParameters getDate getMode}
 }
 
 ######################
@@ -74,6 +74,26 @@ proc ::sude::getParameters {f} {
 	return [list $p0 $p1]
 }
 
+proc ::sude::getMode {f} {
+	lassign [getParameters $f] p0 p1
+	foreach p $p1 {
+		lassign $p id value unit
+		if {$id == "Mode de ventilation"} {return $value}
+	}
+}
+
+proc ::sude::getDate {f} {
+	lassign [getParameters $f] p0 p1
+	foreach p $p1 {
+		lassign $p id value unit
+		if {$id == "Date de l'enregistrement"} {
+			lassign $value dateString timeString
+			lassign [split $dateString "/"] j m y
+			return  "20$y/$m/$j $timeString"
+		}
+	}
+}
+
 proc ::sude::formatParameters {f} {
 	lassign [getParameters $f] p0 p1
 
@@ -111,8 +131,8 @@ plot '<sudef $f' using 1:5 with lines
 set ylabel 'Eadi (mcV)'
 plot '<sudef $f' using 1:6 with lines
 "
-	} {
-	}
+	} 
+
 	append cmd "unset multiplot"
 	eval [exec gnuplot << $cmd]
 	gnuplot $c

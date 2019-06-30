@@ -1,8 +1,9 @@
-package require sqlite3
-
+package provide Sudet 0.1
 namespace eval ::Sudet:: {
 	namespace export {dbInnit dbSync insertTag removeTag getTags getAllTags getOcurence}
 }
+
+package require sqlite3
 
 variable ::Sudet::reqDbInnit {CREATE TABLE fichiers (
 	fichier text NOT NULL UNIQUE,
@@ -49,18 +50,21 @@ proc ::Sudet::dbConnect {} {
 proc ::Sudet::dbSync {} {
 	set dirFileList [glob -nocomplain *.txt]
 	set fileList [getAllFiles]
+
 	foreach f $dirFileList {
 		if {[lsearch $fileList $f] == -1} {
-			db eval [format "INSERT INTO fichiers	(fichier) VALUES (\"%s\")" $f]
+			db eval [format "INSERT INTO fichiers	(fichier, date, mode) VALUES (\"%s\", \"%s\", \"%s\")" $f [::sude::getDate $f] [::sude::getMode $f]]
 			puts "$f added to db"
 		}
 	}
+
 	foreach f $fileList {
 		if {[lsearch $dirFileList $f] == -1} {
 			db eval "DELETE FROM fichiers	WHERE fichier=\"$f\""
 			puts "$f removed from db"
 		}
 	}
+
 }
 
 proc ::Sudet::insertTag {filename tag} {
