@@ -2,10 +2,10 @@
 
 package require sqlite3
 
-#package require sude
-#package require Sudet
-source ~/Projets/Publiés/sudev.sh/Sudet.tcl
-source ~/Projets/Publiés/sudev.sh/sude.tcl
+package require sude
+package require Sudet
+#source ~/Projets/Publiés/sudev.sh/Sudet.tcl
+#source ~/Projets/Publiés/sudev.sh/sude.tcl
 
 tk scaling 1.2
 wm attributes . -zoomed 1
@@ -25,7 +25,7 @@ proc sudetLoadCurentDirectory {} {
 	global filelist
 	global filteredFileList
 
-	set filelist [glob -nocomplain *.txt]
+	set filelist [glob -nocomplain {[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*.txt}]
 
 	if {[llength $filelist] > 0} {
 		::Sudet::dbConnect

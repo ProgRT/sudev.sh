@@ -1,6 +1,6 @@
 package provide Sudet 0.1
 namespace eval ::Sudet:: {
-	namespace export {dbInnit dbSync insertTag removeTag getTags getAllTags getOcurence}
+	namespace export {dbInnit dbSync insertTag removeTag getTags getAllTags getAllFiles getOcurence}
 }
 
 package require sqlite3
